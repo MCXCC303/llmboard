@@ -1,0 +1,21 @@
+{
+  "name": "LLMBoard",
+  "icon": "icon.png",
+  "version": "0.1.0",
+  "description": "多供应商 LLM 余额看板框架，配合 LLMBand 使用",
+  "author": "MCXCC303",
+  "website": "https://github.com/MCXCC303/llmboard",
+  "entry": "llmboard.wasm",
+  "wasi_version": 2,
+  "api_level": 2,
+  "permissions": [
+    "network",
+    "device",
+    "interconnect",
+    "register_interconnect_recv",
+    "thirdpartyapp"
+  ],
+  "additional_files": [
+    "presets/"
+  ]
+}

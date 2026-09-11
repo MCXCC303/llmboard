@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 2,
+  "id": "therouter",
+  "name": "TheRouter.ai",
+  "homepage": "https://therouter.ai/docs/api/api-reference/credits/get-credits/zh/",
+  "accent": "#EC4899",
+  "auth": {
+    "type": "bearer",
+    "header": "Authorization",
+    "prefix": "Bearer ",
+    "keyLabel": "API Key",
+    "keyHint": "therouter.ai 控制台创建"
+  },
+  "form": {
+    "fields": [
+      {
+        "id": "apiKey",
+        "label": "API Key",
+        "hint": "therouter.ai 控制台创建",
+        "secret": true
+      }
+    ]
+  },
+  "balance": {
+    "method": "GET",
+    "url": "https://api.therouter.ai/api/v1/credits",
+    "timeoutSecs": 10,
+    "extract": {
+      "total": {
+        "path": [
+          "credits",
+          "data.credits",
+          "data.balance"
+        ]
+      },
+      "currency": {
+        "default": "USD"
+      }
+    }
+  },
+  "template": {
+    "widgets": [
+      {
+        "type": "balance",
+        "value": "{balance.total:money}"
+      },
+      {
+        "type": "note",
+        "value": "响应字段以官方文档为准(credits)"
+      }
+    ]
+  }
+}

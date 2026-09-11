@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 2,
+  "id": "siliconflow",
+  "name": "SiliconFlow 硅基流动",
+  "homepage": "https://docs.siliconflow.com/en/api-reference/userinfo/get-user-info",
+  "accent": "#22C55E",
+  "auth": {
+    "type": "bearer",
+    "header": "Authorization",
+    "prefix": "Bearer ",
+    "keyLabel": "API Key",
+    "keyHint": "cloud.siliconflow.cn → API 密钥"
+  },
+  "form": {
+    "fields": [
+      {
+        "id": "apiKey",
+        "label": "API Key",
+        "hint": "cloud.siliconflow.cn → API 密钥",
+        "secret": true
+      }
+    ]
+  },
+  "balance": {
+    "method": "GET",
+    "url": "https://api.siliconflow.cn/v1/user/info",
+    "timeoutSecs": 10,
+    "extract": {
+      "total": {
+        "path": "balance"
+      },
+      "currency": {
+        "default": "CNY"
+      }
+    }
+  },
+  "template": {
+    "widgets": [
+      {
+        "type": "balance",
+        "value": "{balance.total:money}"
+      },
+      {
+        "type": "note",
+        "value": "余额含赠金,单位人民币元"
+      }
+    ]
+  }
+}

@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 2,
+  "id": "zhipu",
+  "name": "智谱 GLM",
+  "homepage": "https://open.bigmodel.cn/",
+  "accent": "#0EA5E9",
+  "auth": {
+    "type": "bearer",
+    "header": "Authorization",
+    "prefix": "Bearer ",
+    "keyLabel": "API Key",
+    "keyHint": "open.bigmodel.cn → API Keys"
+  },
+  "form": {
+    "fields": [
+      {
+        "id": "apiKey",
+        "label": "API Key",
+        "hint": "open.bigmodel.cn → API Keys",
+        "secret": true
+      }
+    ]
+  },
+  "balance": {
+    "method": "POST",
+    "url": "https://open.bigmodel.cn/api/paas/v4/check_api",
+    "timeoutSecs": 10,
+    "extract": {
+      "total": {
+        "path": "balance"
+      },
+      "currency": {
+        "default": "CNY"
+      }
+    },
+    "unavailableWhen": {
+      "path": "success",
+      "equals": false
+    }
+  },
+  "template": {
+    "widgets": [
+      {
+        "type": "balance",
+        "value": "{balance.total:money}"
+      },
+      {
+        "type": "note",
+        "value": "check_api 顺带校验 Key 有效性"
+      }
+    ]
+  }
+}

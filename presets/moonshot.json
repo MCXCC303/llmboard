@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 2,
+  "id": "moonshot",
+  "name": "Moonshot (Kimi)",
+  "homepage": "https://www.kimi.com/zh-cn/help/kimi-api/api-balance-and-usage",
+  "accent": "#8B5CF6",
+  "auth": {
+    "type": "bearer",
+    "header": "Authorization",
+    "prefix": "Bearer ",
+    "keyLabel": "API Key",
+    "keyHint": "platform.moonshot.cn → API Key"
+  },
+  "form": {
+    "fields": [
+      {
+        "id": "apiKey",
+        "label": "API Key",
+        "hint": "platform.moonshot.cn → API Key",
+        "secret": true
+      }
+    ]
+  },
+  "balance": {
+    "method": "GET",
+    "url": "https://api.moonshot.cn/v1/users/me/balance",
+    "timeoutSecs": 10,
+    "extract": {
+      "total": {
+        "path": "data.available_balance"
+      },
+      "topUp": {
+        "path": "data.cash_balance",
+        "optional": true
+      },
+      "granted": {
+        "path": "data.voucher_balance",
+        "optional": true
+      },
+      "currency": {
+        "path": "data.currency",
+        "default": "CNY"
+      }
+    }
+  },
+  "template": {
+    "widgets": [
+      {
+        "type": "balance",
+        "value": "{balance.total:money}"
+      },
+      {
+        "type": "kv",
+        "label": "现金",
+        "value": "{balance.topUp:money}",
+        "hideEmpty": true
+      },
+      {
+        "type": "kv",
+        "label": "赠金券",
+        "value": "{balance.granted:money}",
+        "hideEmpty": true
+      }
+    ]
+  }
+}

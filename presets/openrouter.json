@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 2,
+  "id": "openrouter",
+  "name": "OpenRouter",
+  "homepage": "https://openrouter.ai/docs/api_reference/limits",
+  "accent": "#F59E0B",
+  "auth": {
+    "type": "bearer",
+    "header": "Authorization",
+    "prefix": "Bearer ",
+    "keyLabel": "API Key",
+    "keyHint": "openrouter.ai → Keys (sk-or-...)"
+  },
+  "form": {
+    "fields": [
+      {
+        "id": "apiKey",
+        "label": "API Key",
+        "hint": "openrouter.ai → Keys (sk-or-...)",
+        "secret": true
+      }
+    ]
+  },
+  "balance": {
+    "method": "GET",
+    "url": "https://openrouter.ai/api/v1/auth/key",
+    "timeoutSecs": 10,
+    "extract": {
+      "currency": {
+        "default": "USD"
+      },
+      "extras": {
+        "limit": {
+          "path": "data.limit",
+          "optional": true
+        },
+        "usedCost": {
+          "path": "data.usage.total_cost",
+          "optional": true
+        }
+      }
+    },
+    "computed": {
+      "total": "sub(extras.limit, extras.usedCost)",
+      "topUp": "extras.limit",
+      "usedPercent": "mul(div(extras.usedCost, extras.limit), 100)"
+    }
+  },
+  "template": {
+    "widgets": [
+      {
+        "type": "balance",
+        "value": "{balance.total:money}"
+      },
+      {
+        "type": "kv",
+        "label": "充值额度",
+        "value": "{balance.topUp:money}"
+      },
+      {
+        "type": "bar",
+        "label": "已用额度",
+        "value": "{extras.usedCost:money}",
+        "percent": "extras.usedPercent"
+      },
+      {
+        "type": "ring",
+        "label": "额度使用率",
+        "value": "{extras.usedPercent:percent}",
+        "percent": "extras.usedPercent"
+      }
+    ]
+  }
+}

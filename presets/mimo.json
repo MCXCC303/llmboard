@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 2,
+  "id": "mimo",
+  "name": "Xiaomi MiMo",
+  "homepage": "https://platform.xiaomimimo.com",
+  "accent": "#FF6900",
+  "auth": {
+    "type": "bearer",
+    "header": "Authorization",
+    "prefix": "Bearer ",
+    "keyLabel": "API Key",
+    "keyHint": "platform.xiaomimimo.com → Console → API Keys (sk-...)"
+  },
+  "form": {
+    "fields": [
+      {
+        "id": "apiKey",
+        "label": "API Key",
+        "hint": "platform.xiaomimimo.com → API Keys 创建 (sk-...)",
+        "secret": true
+      }
+    ]
+  },
+  "balance": {
+    "method": "GET",
+    "url": "https://api.xiaomimimo.com/v1/models",
+    "timeoutSecs": 10,
+    "extract": {
+      "currency": {
+        "default": "CNY"
+      },
+      "extras": {
+        "list": {
+          "path": "data"
+        }
+      }
+    },
+    "computed": {
+      "total": "0"
+    }
+  },
+  "endpoints": {
+    "models": {
+      "method": "GET",
+      "url": "https://api.xiaomimimo.com/v1/models",
+      "timeoutSecs": 10,
+      "extract": {
+        "list": {
+          "path": "data"
+        }
+      }
+    }
+  },
+  "template": {
+    "widgets": [
+      {
+        "type": "kv",
+        "label": "API 类型",
+        "value": "OpenAI 兼容 /v1",
+        "group": "status"
+      },
+      {
+        "type": "kv",
+        "label": "余额接口",
+        "value": "未开放",
+        "group": "status"
+      },
+      {
+        "type": "table",
+        "label": "模型列表",
+        "from": "models.list",
+        "rowName": "{item.id}",
+        "rowCells": [
+          "{item.owned_by}"
+        ],
+        "columns": [
+          "归属"
+        ]
+      },
+      {
+        "type": "note",
+        "value": "余额查询暂无 API 端点;此页仅验证 api-key 连通性"
+      }
+    ]
+  }
+}

@@ -1,0 +1,193 @@
+{
+  "schemaVersion": 2,
+  "id": "deepseek",
+  "name": "DeepSeek",
+  "homepage": "https://api-docs.deepseek.com/zh-cn/api/get-user-balance/",
+  "accent": "#4D6BFE",
+  "auth": {
+    "type": "bearer",
+    "header": "Authorization",
+    "prefix": "Bearer ",
+    "keyLabel": "API Key",
+    "keyHint": "platform.deepseek.com → API keys"
+  },
+  "form": {
+    "fields": [
+      {
+        "id": "apiKey",
+        "label": "API Key",
+        "hint": "platform.deepseek.com 创建(余额接口)",
+        "secret": true
+      },
+      {
+        "id": "platformToken",
+        "label": "Platform Token",
+        "hint": "platform.deepseek.com 登录后浏览器 F12 复制(用量导出接口)",
+        "secret": true
+      }
+    ]
+  },
+  "balance": {
+    "method": "GET",
+    "url": "https://api.deepseek.com/user/balance",
+    "timeoutSecs": 10,
+    "extract": {
+      "total": {
+        "path": "balance_infos[0].total_balance"
+      },
+      "topUp": {
+        "path": "balance_infos[0].topped_up_balance",
+        "optional": true
+      },
+      "granted": {
+        "path": "balance_infos[0].granted_balance",
+        "optional": true
+      },
+      "currency": {
+        "path": "balance_infos[0].currency",
+        "default": "CNY"
+      }
+    },
+    "unavailableWhen": {
+      "path": "is_available",
+      "equals": false
+    }
+  },
+  "endpoints": {
+    "usage": {
+      "fetcher": "deepseek-usage-export",
+      "url": "https://platform.deepseek.com/api/v0/usage/export",
+      "authField": "platformToken",
+      "timeoutSecs": 60,
+      "extract": {
+        "costSeries": {
+          "path": "costSeries"
+        },
+        "tokenSeries": {
+          "path": "tokenSeries"
+        },
+        "hitRateSeries": {
+          "path": "hitRateSeries"
+        },
+        "cacheHitRate7d": {
+          "path": "cacheHitRate7d"
+        },
+        "dayLabels": {
+          "path": "dayLabels"
+        },
+        "total7d": {
+          "path": "total7d"
+        },
+        "tokens7d": {
+          "path": "tokens7d"
+        },
+        "models": {
+          "path": "models"
+        },
+        "todayTokenSeries": {
+          "path": "todayTokenSeries"
+        },
+        "todayModelNames": {
+          "path": "todayModelNames"
+        },
+        "todayTokens": {
+          "path": "todayTokens"
+        },
+        "todayCost": {
+          "path": "todayCost"
+        }
+      }
+    }
+  },
+  "template": {
+    "widgets": [
+      {
+        "type": "balance",
+        "value": "{balance.total:money}",
+        "label": "余额"
+      },
+      {
+        "type": "kv",
+        "label": "充值",
+        "value": "{balance.topUp:money}",
+        "hideEmpty": true,
+        "group": "account"
+      },
+      {
+        "type": "kv",
+        "label": "赠送",
+        "value": "{balance.granted:money}",
+        "hideEmpty": true,
+        "group": "account"
+      },
+      {
+        "type": "kv",
+        "label": "近7日消费",
+        "value": "{usage.total7d:money}",
+        "group": "usage7d"
+      },
+      {
+        "type": "bars",
+        "label": "近7日消费",
+        "value": "{usage.total7d:money}",
+        "series": "usage.costSeries",
+        "seriesLabels": "usage.dayLabels",
+        "group": "usage7d"
+      },
+      {
+        "type": "hbar",
+        "label": "近7日缓存命中率",
+        "value": "{usage.cacheHitRate7d:percent}",
+        "series": "usage.hitRateSeries",
+        "seriesLabels": "usage.dayLabels",
+        "group": "usage7d"
+      },
+      {
+        "type": "hbar",
+        "label": "当日模型用量",
+        "value": "{usage.todayTokens:compact}",
+        "series": "usage.todayTokenSeries",
+        "seriesLabels": "usage.todayModelNames"
+      },
+      {
+        "type": "ringshare",
+        "label": "当日用量占比",
+        "value": "{usage.todayTokens:compact}",
+        "series": "usage.todayTokenSeries",
+        "seriesLabels": "usage.todayModelNames",
+        "colors": ["#4D6BFE", "#22D3EE", "#FBBF24"]
+      },
+      {
+        "type": "ringseg",
+        "label": "当日占比·单环",
+        "value": "{usage.todayTokens:compact}",
+        "series": "usage.todayTokenSeries",
+        "seriesLabels": "usage.todayModelNames",
+        "colors": ["#4D6BFE", "#22D3EE", "#FBBF24"]
+      }
+    ],
+    "band": {
+      "theme": {
+        "accent": "#4D6BFE",
+        "heroSize": "auto"
+      },
+      "widgetStyles": {
+        "bars": {
+          "height": 56,
+          "gap": 3,
+          "count": 7
+        },
+        "hbar": {
+          "height": 8,
+          "radius": 4,
+          "maxRows": 8
+        }
+      },
+      "clock": {
+        "enabled": true,
+        "windows": [[9, 12], [14, 18]],
+        "dayMode": "weekdays"
+      }
+    }
+  }
+}
