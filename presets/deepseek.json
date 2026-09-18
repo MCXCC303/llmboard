@@ -151,9 +151,10 @@
       },
       {
         "type": "ringshare",
-        "label": "当日用量占比",
-        "value": "{usage.todayTokens:compact}",
-        "series": "usage.todayTokenSeries",
+        "label": "当日模型缓存率",
+        "value": "{usage.todayHitRate:percent}",
+        "rate": true,
+        "series": "usage.todayModelHitRateSeries",
         "seriesLabels": "usage.todayModelNames",
         "colors": ["#4D6BFE", "#22D3EE", "#FBBF24"]
       },

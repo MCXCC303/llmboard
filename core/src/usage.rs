@@ -22,6 +22,20 @@ pub struct ModelAgg {
     pub tokens: u64,
     /// 成本合计(CNY)
     pub cost: f64,
+    /// input_cache_hit_tokens 合计(缓存命中:该模型的当日缓存率数据源)
+    pub hit_tokens: u64,
+    /// input_cache_miss_tokens 合计
+    pub miss_tokens: u64,
+}
+
+/// 缓存命中率(%):hit/(hit+miss)×100,保留 1 位小数;无缓存数据返回 None。
+pub fn hit_rate(hit_tokens: u64, miss_tokens: u64) -> Option<f64> {
+    let total = hit_tokens + miss_tokens;
+    if total == 0 {
+        None
+    } else {
+        Some(round1(hit_tokens as f64 / total as f64 * 100.0))
+    }
 }
 
 /// 模型名 → 标记名映射表 —— 开发者在此登记(能力包数据层)。
@@ -180,17 +194,17 @@ pub fn build_daily_series(
     let mut tokens7d = 0u64;
     let mut hit7d = 0u64;
     let mut miss7d = 0u64;
+    let mut today_agg = DayAgg::default();
     for d in (today_days - (DAYS - 1))..=today_days {
         let (y, m, dd) = dates::civil_from_days(d);
         let key = format!("{y:04}-{m:02}-{dd:02}");
         let agg = per_day.get(&key).copied().unwrap_or_default();
+        if d == today_days {
+            today_agg = agg;
+        }
         cost_series.push(round2(agg.cost));
         token_series.push(agg.output_tokens);
-        hit_rate_series.push(if agg.hit_tokens + agg.miss_tokens > 0 {
-            round1(agg.hit_tokens as f64 / (agg.hit_tokens + agg.miss_tokens) as f64 * 100.0)
-        } else {
-            0.0
-        });
+        hit_rate_series.push(hit_rate(agg.hit_tokens, agg.miss_tokens).unwrap_or(0.0));
         labels.push(format!("{m}/{dd}"));
         total7d += agg.cost;
         tokens7d += agg.output_tokens;
@@ -208,10 +222,17 @@ pub fn build_daily_series(
     // 7 日总体缓存命中率:无调用数据时为 null(模板渲染为 "--")
     out.insert(
         "cacheHitRate7d".to_string(),
-        if hit7d + miss7d > 0 {
-            serde_json::json!(round1(hit7d as f64 / (hit7d + miss7d) as f64 * 100.0))
-        } else {
-            serde_json::Value::Null
+        match hit_rate(hit7d, miss7d) {
+            Some(r) => serde_json::json!(r),
+            None => serde_json::Value::Null,
+        },
+    );
+    // 当日(窗口最后一天)总体缓存命中率:同样在无数据时为 null
+    out.insert(
+        "todayHitRate".to_string(),
+        match hit_rate(today_agg.hit_tokens, today_agg.miss_tokens) {
+            Some(r) => serde_json::json!(r),
+            None => serde_json::Value::Null,
         },
     );
     out.insert("days".to_string(), serde_json::json!(DAYS));
@@ -255,7 +276,19 @@ pub fn aggregate_models(amount_text: &str, cost_text: &str) -> Result<Vec<ModelA
 
         let model = rec.get(3).unwrap_or_default();
 
-        if model.is_empty() || rec.get(6).unwrap_or_default() != "output_tokens" {
+        if model.is_empty() {
+
+            continue;
+
+        }
+
+        // 只解析关心的三类行(输出/缓存命中/缓存未命中):其余类型(如 request_count)
+        // 的 amount 列可能为空或非数字,提前跳过可避免整段聚合失败。
+        let type_ = rec.get(6).unwrap_or_default();
+
+        let wanted = ["output_tokens", "input_cache_hit_tokens", "input_cache_miss_tokens"];
+
+        if !wanted.contains(&type_) {
 
             continue;
 
@@ -271,7 +304,17 @@ pub fn aggregate_models(amount_text: &str, cost_text: &str) -> Result<Vec<ModelA
 
             .map_err(|_| format!("amount 非数字: {}", rec.get(8).unwrap_or_default()))?;
 
-        by_model.entry(model.to_string()).or_default().tokens += amount;
+        let entry = by_model.entry(model.to_string()).or_default();
+
+        match type_ {
+
+            "output_tokens" => entry.tokens += amount,
+
+            "input_cache_hit_tokens" => entry.hit_tokens += amount,
+
+            _ => entry.miss_tokens += amount,
+
+        }
 
     }
 
@@ -433,12 +476,15 @@ mod tests {
         assert_eq!(rates[6].as_f64().unwrap(), 80.0); // 07-13: 80/(80+20)
         // 总体命中率 (9+80)/(10+100)*100 → 80.9
         assert_eq!(out["cacheHitRate7d"].as_f64().unwrap(), 80.9);
+        // 当日命中率 = 窗口最后一天(07-13)→ 80.0
+        assert_eq!(out["todayHitRate"].as_f64().unwrap(), 80.0);
         assert_eq!(out["total7d"].as_f64().unwrap(), 3.0);
         assert_eq!(out["tokens7d"].as_u64().unwrap(), 30);
 
-        // 全无调用数据 → cacheHitRate7d 为 null
+        // 全无调用数据 → cacheHitRate7d / todayHitRate 为 null
         let empty = build_daily_series(&BTreeMap::new(), today);
         assert!(empty["cacheHitRate7d"].is_null());
+        assert!(empty["todayHitRate"].is_null());
     }
 
     #[test]
@@ -486,6 +532,38 @@ a,2026-07-14T10:00:00+08:00,x,deepseek-chat,Paid,0.6,CNY"#;
         assert!((m[0].cost - 0.5).abs() < 1e-9);
         assert_eq!(aggregate_models_on(amount, cost, "2020-01-01").unwrap().len(), 0);
         assert_eq!(day_key(0), "1970-01-01");
+    }
+
+    #[test]
+    fn aggregate_models_tracks_cache_tokens_per_model() {
+        // 两个模型各自带缓存命中/未命中行:每模型命中率 = hit/(hit+miss)
+        let amount = r#"user_id,start_time_iso,end_time_iso,model,api_key_name,api_key,type,price,amount
+a,2026-07-13T10:00:00+08:00,x,deepseek-v4-flash,k,sk,output_tokens,1,100
+a,2026-07-13T10:00:00+08:00,x,deepseek-v4-flash,k,sk,input_cache_hit_tokens,1,900
+a,2026-07-13T10:00:00+08:00,x,deepseek-v4-flash,k,sk,input_cache_miss_tokens,1,100
+a,2026-07-13T10:00:00+08:00,x,deepseek-v4-pro,k,sk,output_tokens,1,50
+a,2026-07-13T10:00:00+08:00,x,deepseek-v4-pro,k,sk,input_cache_hit_tokens,1,100
+a,2026-07-13T10:00:00+08:00,x,deepseek-v4-pro,k,sk,input_cache_miss_tokens,1,900
+a,2026-07-13T10:00:00+08:00,x,deepseek-v4-flash,k,sk,request_count,,7"#;
+        let cost = r#"user_id,start_time_iso,end_time_iso,model,wallet_type,cost,currency
+a,2026-07-13T10:00:00+08:00,x,deepseek-v4-flash,Paid,1.0,CNY
+a,2026-07-13T10:00:00+08:00,x,deepseek-v4-pro,Paid,2.0,CNY"#;
+        let mut models = aggregate_models_on(amount, cost, "2026-07-13").unwrap();
+        models.sort_by(|a, b| a.model.cmp(&b.model));
+        assert_eq!(models.len(), 2);
+
+        assert_eq!(models[0].model, "deepseek-v4-flash");
+        assert_eq!(models[0].hit_tokens, 900);
+        assert_eq!(models[0].miss_tokens, 100);
+        assert_eq!(hit_rate(models[0].hit_tokens, models[0].miss_tokens), Some(90.0));
+
+        assert_eq!(models[1].model, "deepseek-v4-pro");
+        assert_eq!(models[1].hit_tokens, 100);
+        assert_eq!(models[1].miss_tokens, 900);
+        assert_eq!(hit_rate(models[1].hit_tokens, models[1].miss_tokens), Some(10.0));
+
+        // 无缓存行 → None(调用方决定填 0 还是 null)
+        assert_eq!(hit_rate(0, 0), None);
     }
 
 }

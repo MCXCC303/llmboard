@@ -38,7 +38,7 @@ pub struct TableRow {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Widget {
-    /// balance | kv | bar | ring | bars | stack | table | note
+    /// balance | kv | bar | ring | ringshare | ringseg | bars | stack | hbar | table | note
     #[serde(rename = "type")]
     pub kind: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -70,6 +70,9 @@ pub struct Widget {
     /// 分段/占比组件逐项颜色(ringseg/ringshare 段色;缺省由手环端按 accent 阶梯)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub colors: Option<Vec<String>>,
+    /// ringshare 取值语义:true = series 是 0-100 的比率(每项弧长 = 该值本身,不做占比归一化)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rate: Option<bool>,
 }
 
 impl Widget {
@@ -87,6 +90,7 @@ impl Widget {
             table_rows: None,
             color: None,
             colors: None,
+            rate: None,
         }
     }
 }
@@ -321,6 +325,7 @@ mod tests {
                     row_name: None,
                     row_cells: None,
                     colors: None,
+                    rate: None,
                 }],
                 band: None,
             },

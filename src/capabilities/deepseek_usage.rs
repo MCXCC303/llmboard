@@ -86,21 +86,32 @@ fn usage_export(
         .collect();
     out.insert("models".to_string(), serde_json::Value::Array(models));
     // 当日模型用量(输出 token 降序,榜首即 100% 基准;供 hbar 模板)
+    // 以及同一排序下的「每模型当日缓存命中率」序列(供 ringshare rate 模式)。
+    // 两个序列共用 todayModelNames,顺序一致,模板可直接下标对齐。
     let day = usage::day_key(today_days);
     let mut today_models = usage::aggregate_models_on(&amount_text, &cost_text, &day)?;
     today_models.sort_by(|a, b| b.tokens.cmp(&a.tokens));
     let mut today_series: Vec<serde_json::Value> = Vec::new();
     let mut today_names: Vec<serde_json::Value> = Vec::new();
+    let mut today_hit_rates: Vec<serde_json::Value> = Vec::new();
     let mut today_tokens = 0u64;
     let mut today_cost = 0.0f64;
     for m in today_models.into_iter().take(8) {
         today_names.push(serde_json::Value::String(usage::model_display_name(&m.model)));
         today_series.push(serde_json::json!(m.tokens));
+        // 无缓存数据(当日该模型没有 hit/miss 行)按 0 处理:手环 rate 模式下 0 的环不渲染
+        today_hit_rates.push(serde_json::json!(
+            usage::hit_rate(m.hit_tokens, m.miss_tokens).unwrap_or(0.0)
+        ));
         today_tokens += m.tokens;
         today_cost += m.cost;
     }
     out.insert("todayTokenSeries".to_string(), serde_json::Value::Array(today_series));
     out.insert("todayModelNames".to_string(), serde_json::Value::Array(today_names));
+    out.insert(
+        "todayModelHitRateSeries".to_string(),
+        serde_json::Value::Array(today_hit_rates),
+    );
     out.insert("todayTokens".to_string(), serde_json::json!(today_tokens));
     out.insert("todayCost".to_string(), serde_json::json!(usage::round2(today_cost)));
     Ok(out)

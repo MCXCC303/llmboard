@@ -125,6 +125,7 @@ fn render_widget(
                     .and_then(|s| resolve_series_labels(s, &ctx)),
                 color: Some(spec.color.clone().unwrap_or_else(|| preset.accent.clone())),
                 colors: spec.colors.clone(),
+                rate: spec.rate,
             ..Default::default()
             })
         }
@@ -620,6 +621,7 @@ mod tests {
                 row_name: None,
                 row_cells: None,
                 colors: None,
+                rate: None,
             },
             WidgetSpec {
                 kind: "kv".into(),
@@ -638,6 +640,7 @@ mod tests {
                 row_name: None,
                 row_cells: None,
                 colors: None,
+                rate: None,
             },
             WidgetSpec {
                 kind: "kv".into(),
@@ -656,6 +659,7 @@ mod tests {
                 row_name: None,
                 row_cells: None,
                 colors: None,
+                rate: None,
             },
         ]);
         let widgets = render_widgets(&preset, Some(&bal()), &BTreeMap::new(), &no_ep());
@@ -690,6 +694,7 @@ mod tests {
             row_name: None,
             row_cells: None,
             colors: None,
+            rate: None,
         }]);
         let extras = BTreeMap::from([
             ("usedCost".to_string(), json!(2.5)),
@@ -700,6 +705,56 @@ mod tests {
         assert_eq!(widgets[0].kind, "bar");
         assert_eq!(widgets[0].percent, Some(25.0));
         assert_eq!(widgets[0].value, "¥2.50");
+    }
+
+    #[test]
+    fn renders_ringshare_rate_passthrough() {
+        // rate: true → 快照带上 rate 标记 + series 原样透传(手环端据此按比率画弧,不做占比归一化)
+        let rate_spec = |rate: Option<bool>| WidgetSpec {
+            kind: "ringshare".into(),
+            label: Some("当日模型缓存率".into()),
+            value: Some("{usage.todayHitRate:percent}".into()),
+            hint: None,
+            percent: None,
+            series: Some("usage.todayModelHitRateSeries".into()),
+            series_labels: Some("usage.todayModelNames".into()),
+            color: None,
+            hide_empty: false,
+            group: None,
+            columns: None,
+            rows: None,
+            from: None,
+            row_name: None,
+            row_cells: None,
+            colors: Some(vec!["#4D6BFE".into(), "#22D3EE".into()]),
+            rate,
+        };
+        let endpoints = BTreeMap::from([(
+            "usage".to_string(),
+            json!({
+                "todayModelHitRateSeries": [90.0, 10.0],
+                "todayModelNames": ["Flash", "Pro"],
+                "todayHitRate": 82.0
+            }),
+        )]);
+
+        let preset = demo_preset(vec![rate_spec(Some(true))]);
+        let widgets = render_widgets(&preset, Some(&bal()), &BTreeMap::new(), &endpoints);
+        assert_eq!(widgets.len(), 1);
+        assert_eq!(widgets[0].kind, "ringshare");
+        assert_eq!(widgets[0].rate, Some(true));
+        assert_eq!(widgets[0].series.as_deref(), Some(&[90.0, 10.0][..]));
+        assert_eq!(
+            widgets[0].series_labels.as_deref(),
+            Some(&["Flash".to_string(), "Pro".to_string()][..])
+        );
+        assert_eq!(widgets[0].value, "82.0%");
+
+        // 未声明 rate(占比模式)→ 快照不带该字段,保持既有签名/体积
+        let preset2 = demo_preset(vec![rate_spec(None)]);
+        let widgets2 = render_widgets(&preset2, Some(&bal()), &BTreeMap::new(), &endpoints);
+        assert_eq!(widgets2.len(), 1);
+        assert_eq!(widgets2[0].rate, None);
     }
 
     #[test]
@@ -721,6 +776,7 @@ mod tests {
             row_name: None,
             row_cells: None,
             colors: None,
+            rate: None,
         }]);
         let endpoints = BTreeMap::from([(
             "usage".to_string(),
@@ -757,6 +813,7 @@ mod tests {
             row_name: None,
             row_cells: None,
             colors: None,
+            rate: None,
         }]);
         let widgets = render_widgets(&preset, Some(&bal()), &BTreeMap::new(), &no_ep());
         assert_eq!(widgets[0].value, "--");
@@ -791,6 +848,7 @@ mod tests {
             row_name: None,
             row_cells: None,
             colors: None,
+            rate: None,
         }]);
         let extras = BTreeMap::from([("hit".to_string(), json!(9.0))]);
         let widgets = render_widgets(&preset, Some(&bal()), &extras, &no_ep());
@@ -824,6 +882,7 @@ mod tests {
             row_name: None, // 默认 {item.name}
             row_cells: Some(vec!["{item.cost:money}".into(), "{item.tokens:compact}".into()]),
             colors: None,
+            rate: None,
         }]);
         let endpoints = BTreeMap::from([(
             "usage".to_string(),

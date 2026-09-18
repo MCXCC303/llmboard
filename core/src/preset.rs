@@ -244,6 +244,10 @@ pub struct WidgetSpec {
     /// 分段/占比类组件的逐项颜色(如 ringseg/ringshare 的段色;缺省按 accent 阶梯)
     #[serde(default)]
     pub colors: Option<Vec<String>>,
+    /// ringshare 取值语义:true = series 为 0-100 的比率(每项弧长 = 该值本身,
+    /// 不做占比归一化;如"每模型当日缓存率");缺省/false = 按 series 占比归一化
+    #[serde(default)]
+    pub rate: Option<bool>,
 }
 
 /// 预设表格行:name 为竖表头单元格。
@@ -574,6 +578,20 @@ pub fn validate(p: &Preset) -> Result<(), String> {
                 "template.widgets[{i}].type 非法: {:?}(支持 balance/kv/bar/ring/ringshare/ringseg/bars/stack/hbar/table/note)",
                 w.kind
             ));
+        }
+        // rate 模式(series 是 0-100 比率而非占比)目前仅 ringshare 支持
+        if w.rate == Some(true) {
+            if w.kind != "ringshare" {
+                return Err(format!(
+                    "template.widgets[{i}].rate 仅支持 ringshare(当前 type={:?})",
+                    w.kind
+                ));
+            }
+            if w.series.is_none() {
+                return Err(format!(
+                    "template.widgets[{i}](ringshare).rate 模式需要声明 series"
+                ));
+            }
         }
         if let Some(colors) = &w.colors {
             if colors.is_empty() {
@@ -1100,6 +1118,38 @@ mod tests {
             vec![("demo".to_string(), "extra".to_string(), "ghost-fetcher".to_string())]
         );
         assert!(unknown_fetcher_refs(&[p], &["demo-fetcher", "ghost-fetcher"]).is_empty());
+    }
+
+    #[test]
+    fn validate_ringshare_rate_mode() {
+        // rate: true(series 是 0-100 比率)合法
+        let ok = r#"{
+            "schemaVersion": 2, "id": "demo", "name": "Demo",
+            "auth": { "type": "bearer", "header": "Authorization" },
+            "form": { "fields": [ { "id": "apiKey", "label": "API Key" } ] },
+            "balance": { "method": "GET", "url": "https://example.com/b", "extract": { "total": { "path": "total" } } },
+            "endpoints": { "usage": { "fetcher": "demo-fetcher", "extract": {} } },
+            "template": { "widgets": [
+                { "type": "ringshare", "label": "当日模型缓存率", "rate": true,
+                  "value": "{usage.todayHitRate:percent}",
+                  "series": "usage.todayModelHitRateSeries",
+                  "seriesLabels": "usage.todayModelNames" }
+            ] }
+        }"#;
+        let p: Preset = serde_json::from_str(ok).unwrap();
+        validate(&p).unwrap();
+
+        // rate 用在非 ringshare → 拒绝
+        let wrong_type = ok.replace("\"type\": \"ringshare\"", "\"type\": \"bars\"");
+        let p2: Preset = serde_json::from_str(&wrong_type).unwrap();
+        let err = validate(&p2).unwrap_err();
+        assert!(err.contains("rate 仅支持 ringshare"), "{err}");
+
+        // rate 模式缺 series → 拒绝
+        let no_series = ok.replace("\"series\": \"usage.todayModelHitRateSeries\",", "");
+        let p3: Preset = serde_json::from_str(&no_series).unwrap();
+        let err3 = validate(&p3).unwrap_err();
+        assert!(err3.contains("需要声明 series"), "{err3}");
     }
 
     #[test]
